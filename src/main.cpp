@@ -2,8 +2,11 @@
 
 #include <SFML/Graphics.hpp>
 #include <SFML/OpenGL.hpp>
+#include <chrono>
 
 int main() {
+
+    const auto startTime = std::chrono::steady_clock::now();
     // OpenGL settings we request for:
     sf::ContextSettings settings;
     settings.depthBits = 24;   // 24-bit depth buffer
@@ -34,7 +37,9 @@ int main() {
     // load vertex and fragment shaders:
     sf::Shader shader(std::filesystem::path{"main.vert"}, std::filesystem::path{"main.frag"});
     // TODO: eventually add another Shader here which uses the blur fragment shader,
+    sf::Shader shader2(std::filesystem::path{"main.vert"}, std::filesystem::path{"blur.frag"});
     // also create a sf::RenderTexture...
+    sf::RenderTexture world(window.getSize());
     while (window.isOpen()) {
         while (auto e = window.pollEvent()) {
             if (e->is<sf::Event::Closed>()) {
@@ -43,8 +48,31 @@ int main() {
         }
         // TODO: set shader uniforms and eventually draw into
         // a RenderTexture first before postprocessing into the window target.
+        const auto size = window.getSize();
+        auto cursorPos = sf::Mouse::getPosition(window);
+        auto elapsedTime = std::chrono::duration<float>
+            (std::chrono::steady_clock::now() - startTime).count();
+        shader.setUniform("time", elapsedTime);
+        shader.setUniform("cursorPos", sf::Glsl::Vec2{
+            static_cast<float>(cursorPos.x),
+            static_cast<float>(size.y) - static_cast<float>(cursorPos.y)
+        });
+        shader.setUniform("windowSize", sf::Glsl::Vec2{
+            static_cast<float>(size.x),
+            static_cast<float>(size.y)});
+        world.clear(sf::Color::Black);
+        world.draw(fullscreenTriangle, &shader);
+        world.display();
+
+        const auto renderSize = world.getSize();
+        shader2.setUniform("texture", world.getTexture());
+        shader2.setUniform("renderSize", sf::Glsl::Vec2{
+            static_cast<float>(renderSize.x),
+            static_cast<float>(renderSize.y)
+        });
+
         window.clear(sf::Color::Black);
-        window.draw(fullscreenTriangle, &shader);
+        window.draw(fullscreenTriangle, &shader2);
         window.display();
     }
     return 0;
